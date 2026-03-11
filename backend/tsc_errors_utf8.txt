@@ -1,0 +1,7 @@
+﻿src/auth/auth.service.ts(6,32): error TS2307: Cannot find module '../../users/entities/user.entity' or its corresponding type declarations.
+src/auth/auth.service.ts(7,24): error TS2307: Cannot find module '../../tenants/entities/tenant.entity' or its corresponding type declarations.
+src/auth/auth.service.ts(8,50): error TS2307: Cannot find module '../../billing/entities/subscription.entity' or its corresponding type declarations.
+src/auth/auth.service.ts(9,22): error TS2307: Cannot find module '../../billing/entities/plan.entity' or its corresponding type declarations.
+src/auth/auth.service.ts(47,40): error TS2339: Property 'id' does not exist on type 'unknown[]'.
+src/auth/auth.service.ts(56,44): error TS2339: Property 'id' does not exist on type 'unknown[]'.
+src/auth/auth.service.ts(57,39): error TS2339: Property 'id' does not exist on type '{ price_monthly: number; }'.
