@@ -208,7 +208,7 @@ export default function GeospatialMapPage() {
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
-    const [mapType, setMapType] = useState<"streets" | "satellite" | "light" | "dark">("streets");
+    const [mapType, setMapType] = useState<any>("streets");
     const [vizMode, setVizMode] = useState<"standard" | "cluster" | "heatmap">("standard");
     const [selectedSub, setSelectedSub] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -278,7 +278,7 @@ export default function GeospatialMapPage() {
     }, [selectedSub, mapInstance]);
 
     // Computed Logic
-    const tileUrls: Record<"streets" | "satellite" | "light" | "dark", string> = {
+    const tileUrls: any = {
         streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
