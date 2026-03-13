@@ -29,7 +29,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
     cancelled: { label: "Cancelled", color: "text-red-600", bg: "bg-red-50" },
 };
 
-export default function DispatchPage() {
+import { Suspense } from "react";
+
+function DispatchPageContent() {
     const { user } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -369,5 +371,20 @@ function ActivityIcon({ className }: { className?: string }) {
         >
             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
         </svg>
+    );
+}
+
+export default function DispatchPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[#F8F9FC]">
+                <div className="text-center">
+                    <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
+                    <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">Loading Strategy Center...</p>
+                </div>
+            </div>
+        }>
+            <DispatchPageContent />
+        </Suspense>
     );
 }
