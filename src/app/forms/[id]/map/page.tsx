@@ -533,7 +533,7 @@ export default function GeospatialMapPage() {
                                         key={type}
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => setMapType(type)}
+                                        onClick={() => setMapType(type as any)}
                                         className={`h-11 w-11 p-0 rounded-2xl transition-all ${mapType === type ? (type === 'dark' ? "bg-black text-white" : "bg-slate-900 text-white shadow-lg") : "hover:bg-slate-100 text-slate-500"}`}
                                     >
                                         {type === 'dark' ? <Moon className="w-5 h-5" /> : <MapIcon className="w-5 h-5" />}
