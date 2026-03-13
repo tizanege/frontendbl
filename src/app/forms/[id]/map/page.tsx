@@ -278,7 +278,7 @@ export default function GeospatialMapPage() {
     }, [selectedSub, mapInstance]);
 
     // Computed Logic
-    const tileUrls = {
+    const tileUrls: Record<"streets" | "satellite" | "light" | "dark", string> = {
         streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
