@@ -8,24 +8,33 @@ import { FormsModule } from './forms/forms.module';
 import { UsersModule } from './users/users.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { CommonModule } from './common/common.module';
+import { SupabaseModule } from './supabase/supabase.module';
 import { User } from './users/entities/user.entity';
 import { Tenant } from './tenants/entities/tenant.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    SupabaseModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
-        host: config.get<string>('DATABASE_HOST'),
-        port: config.get<number>('DATABASE_PORT'),
-        username: config.get<string>('DATABASE_USER'),
-        password: config.get<string>('DATABASE_PASS'),
-        database: config.get<string>('DATABASE_NAME'),
+        url: config.get<string>('DATABASE_URL'),
+        host: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_HOST'),
+        port: config.get<string>('DATABASE_URL') ? undefined : config.get<number>('DATABASE_PORT'),
+        username: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_USER'),
+        password: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_PASS'),
+        database: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         autoLoadEntities: true,
-        synchronize: true, // Only for development
+        synchronize: false, // Set to false to use migrations
+        ssl: true,
+        extra: {
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        },
       }),
       inject: [ConfigService],
     }),
