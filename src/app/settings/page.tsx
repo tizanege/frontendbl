@@ -88,8 +88,8 @@ export default function SettingsPage() {
                                     key={cat.id}
                                     onClick={() => setActiveTab(cat.id)}
                                     className={`flex items-center justify-between p-4 rounded-2xl transition-all cursor-pointer ${activeTab === cat.id
-                                            ? 'bg-white shadow-md shadow-slate-200/50 text-blue-600'
-                                            : 'text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-900'
+                                        ? 'bg-white shadow-md shadow-slate-200/50 text-blue-600'
+                                        : 'text-slate-500 hover:bg-white hover:shadow-sm hover:text-slate-900'
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -141,7 +141,7 @@ export default function SettingsPage() {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label className="text-xs font-black text-slate-700 uppercase tracking-widest">Account ID</Label>
-                                                    <Input readOnly value={user?.sub || "---"} className="h-12 rounded-xl border-slate-100 bg-slate-50 font-mono text-xs text-slate-500" />
+                                                    <Input readOnly value={user?.id || "---"} className="h-12 rounded-xl border-slate-100 bg-slate-50 font-mono text-xs text-slate-500" />
                                                 </div>
                                             </div>
 
