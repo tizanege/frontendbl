@@ -208,7 +208,7 @@ export default function GeospatialMapPage() {
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
-    const [mapType, setMapType] = useState<"streets" | "satellite" | "light">("streets");
+    const [mapType, setMapType] = useState<"streets" | "satellite" | "light" | "dark">("streets");
     const [vizMode, setVizMode] = useState<"standard" | "cluster" | "heatmap">("standard");
     const [selectedSub, setSelectedSub] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -497,8 +497,8 @@ export default function GeospatialMapPage() {
                                             }
                                         }}
                                         className={`h-11 w-11 p-0 rounded-2xl transition-all ${(mode === 'proximity' ? proximityMode.active : vizMode === mode)
-                                                ? (mode === 'heatmap' ? "bg-red-600 text-white shadow-xl scale-110" : "bg-blue-600 text-white shadow-xl scale-110")
-                                                : "hover:bg-slate-100 text-slate-500"
+                                            ? (mode === 'heatmap' ? "bg-red-600 text-white shadow-xl scale-110" : "bg-blue-600 text-white shadow-xl scale-110")
+                                            : "hover:bg-slate-100 text-slate-500"
                                             }`}
                                     >
                                         <Icon className="w-5 h-5" />

@@ -11,7 +11,12 @@ import {
     Navigation,
     Send,
     WifiOff,
-    Zap
+    Zap,
+    Plus,
+    Trash2,
+    Table as TableIcon,
+    Camera,
+    PenTool
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +29,7 @@ import { useAuth } from "@/context/AuthContext";
 import { saveOfflineSubmission, getUnsyncedSubmissions, markAsSynced } from "@/lib/offline-storage";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
+
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
@@ -60,7 +66,6 @@ export default function FormSubmitPage() {
     useEffect(() => {
         const fetchForm = async () => {
             try {
-                // Use public endpoint to allow unauthenticated access
                 const { data } = await api.get(`/forms/${id}/public`);
                 setForm(data);
             } catch (err) {
@@ -80,12 +85,10 @@ export default function FormSubmitPage() {
 
         if (id) fetchForm();
 
-        // Get dispatchId from URL
         const searchParams = new URLSearchParams(window.location.search);
         const dId = searchParams.get('dispatchId');
         if (dId) {
             setDispatchId(dId);
-            // Mark dispatch as started and get pre-filled data
             api.get(`/dispatch/${dId}`).then(res => {
                 if (res.data.pre_filled_data) {
                     setFd(res.data.pre_filled_data);
@@ -100,7 +103,6 @@ export default function FormSubmitPage() {
         };
     }, [id]);
 
-    // Background sync effect
     useEffect(() => {
         const syncSubmissions = async () => {
             if (navigator.onLine) {
@@ -119,7 +121,7 @@ export default function FormSubmitPage() {
             }
         };
 
-        const interval = setInterval(syncSubmissions, 30000); // Try every 30s
+        const interval = setInterval(syncSubmissions, 30000);
         if (navigator.onLine) syncSubmissions();
 
         return () => clearInterval(interval);
@@ -153,14 +155,11 @@ export default function FormSubmitPage() {
             await api.post(`/forms/${id}/submit`, {
                 data: fd,
                 location: loc,
-                dispatchId: dispatchId,
+                dispatchId,
             });
             setSubmitted(true);
-        } catch (err) {
-            console.error("Submission failed, saving offline...", err);
-            const savedId = await saveOfflineSubmission(id, fd, loc);
-            setOfflineId(savedId);
-            setSubmitted(true);
+        } catch (err: any) {
+            alert(err.response?.data?.message || "Failed to submit form. Try saving offline.");
         } finally {
             setSubmitting(false);
         }
@@ -168,38 +167,44 @@ export default function FormSubmitPage() {
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         </div>
     );
 
     if (!form) return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <Card className="text-center p-12 rounded-[40px] border-none shadow-xl max-w-sm">
-                <CardTitle>Form not found</CardTitle>
-                <p className="text-slate-500 mt-2">The link may be broken or the form has been archived.</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+            <div className="bg-white p-8 rounded-lg border border-slate-300 max-w-sm text-center shadow-sm">
+                <h3 className="text-lg font-bold text-slate-900">Form Not Found</h3>
+                <p className="text-sm text-slate-600 mt-2">The link may be broken or the form has been archived.</p>
                 {user && (
-                    <Button onClick={() => router.push('/forms')} className="mt-6 w-full h-12 rounded-xl">Back to Studio</Button>
+                    <Button onClick={() => router.push('/forms')} className="mt-6 w-full h-10 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm">
+                        Back to Studio
+                    </Button>
                 )}
-            </Card>
+            </div>
         </div>
     );
 
     if (submitted) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] p-6">
-            <div className="max-w-md w-full text-center">
-                <div className={`w-24 h-24 ${offlineId ? 'bg-blue-50' : 'bg-green-50'} rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-100`}>
-                    {offlineId ? <WifiOff className="w-12 h-12 text-blue-600" /> : <CheckCircle2 className="w-12 h-12 text-green-600" />}
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+            <div className="max-w-md w-full bg-white p-8 rounded-lg border border-slate-200 shadow-sm text-center">
+                <div className={`w-16 h-16 ${offlineId ? 'bg-blue-50' : 'bg-green-50'} rounded-full flex items-center justify-center mx-auto mb-6`}>
+                    {offlineId ? <WifiOff className="w-8 h-8 text-blue-600" /> : <CheckCircle2 className="w-8 h-8 text-green-600" />}
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 mb-2">
-                    {offlineId ? 'Saved Offline' : 'Submission Successful'}
+                <h1 className="text-2xl font-bold text-slate-900 mb-2">
+                    {offlineId ? 'Saved Offline' : 'Submission Received'}
                 </h1>
-                <p className="text-slate-500 font-medium mb-10">
-                    {offlineId ? 'You are currently offline. Data is stored securely on your device and will sync automatically once you regain connection.' : 'Your data has been captured and synchronized with the workspace.'}
+                <p className="text-sm text-slate-600 mb-8">
+                    {offlineId ? 'You are offline. Your response is saved locally and will auto-sync when online.' : 'Thank you. Your response has been recorded successfully.'}
                 </p>
                 <div className="flex flex-col gap-3">
-                    <Button onClick={() => { setSubmitted(false); setOfflineId(null); }} className="h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 font-bold border-none">New Submission</Button>
+                    <Button onClick={() => { setSubmitted(false); setOfflineId(null); setFd({}); }} className="h-10 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm">
+                        Submit Another Response
+                    </Button>
                     {user && (
-                        <Button variant="ghost" onClick={() => router.push('/forms')} className="h-14 rounded-2xl font-bold text-slate-500">Back to Forms Studio</Button>
+                        <Button variant="outline" onClick={() => router.push('/forms')} className="h-10 rounded border-slate-300 font-medium text-sm">
+                            Return to Forms
+                        </Button>
                     )}
                 </div>
             </div>
@@ -207,139 +212,362 @@ export default function FormSubmitPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#F9FAFB] py-16 px-6 pb-32">
-            <div className="max-w-2xl mx-auto">
-                <div className="flex items-center justify-end mb-8">
+        <div className="min-h-screen bg-slate-100 py-10 px-4">
+            <div className="max-w-3xl mx-auto space-y-6">
+
+                {/* Status Bar */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Official Form Document</span>
                     {isOffline && (
-                        <Badge className="bg-blue-50 text-blue-600 border-none px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest">
-                            <WifiOff className="w-3" /> Offline Mode Active
+                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1 rounded text-xs font-semibold flex items-center gap-1.5">
+                            <WifiOff className="w-3.5 h-3.5" /> Working Offline
                         </Badge>
                     )}
                 </div>
 
-                <Card className="rounded-[40px] border-none shadow-[0_20px_60px_rgba(0,0,0,0.03)] bg-white overflow-hidden">
-                    <CardHeader className="p-12 pb-8 border-b border-slate-50">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                                <ShieldCheck className="text-white w-5 h-5" />
-                            </div>
-                            <span className="text-sm font-black text-slate-900 tracking-tight italic">BLESH<span className="text-blue-600 NOT-italic">FORMS</span></span>
+                {/* Classic Flat Form Container */}
+                <div className="bg-white border border-slate-300 rounded-lg shadow-sm overflow-hidden">
+
+                    {/* Classic Header Header */}
+                    <div className="p-8 border-b border-slate-200 bg-white">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-6 h-6 bg-slate-900 rounded flex items-center justify-center text-white text-xs font-bold">B</div>
+                            <span className="text-xs font-bold tracking-wider uppercase text-slate-500">BLESH FORMS</span>
                         </div>
-                        <CardTitle className="text-4xl font-black text-slate-900 tracking-tight">{form.name}</CardTitle>
-                        <CardDescription className="text-base text-slate-500 font-medium mt-2">{form.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-12">
-                        <form onSubmit={handleSubmit} className="space-y-8">
-                            {form.schema?.fields?.map((field: any) => (
-                                <div key={field.id} className="space-y-3">
-                                    <Label className="text-sm font-black text-slate-700 uppercase tracking-widest ml-1">
-                                        {field.label} {field.required && <span className="text-red-500">*</span>}
-                                    </Label>
+                        <h1 className="text-2xl font-bold text-slate-900">{form.name}</h1>
+                        {form.description && (
+                            <p className="text-sm text-slate-600 mt-1">{form.description}</p>
+                        )}
+                    </div>
 
-                                    {field.type === 'text' && (
-                                        <Input
-                                            required={field.required}
-                                            className="h-16 rounded-2xl border-slate-100 bg-slate-50/50 focus:bg-white text-lg font-medium"
-                                            placeholder={field.placeholder}
-                                            value={fd[field.id] || ""}
-                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                        />
-                                    )}
+                    {/* Classic Form Body */}
+                    <div className="p-8">
+                        <form onSubmit={handleSubmit} className="space-y-6">
 
-                                    {field.type === 'number' && (
-                                        <Input
-                                            type="number"
-                                            required={field.required}
-                                            className="h-16 rounded-2xl border-slate-100 bg-slate-50/50 focus:bg-white text-lg font-medium"
-                                            placeholder={field.placeholder}
-                                            value={fd[field.id] || ""}
-                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                        />
-                                    )}
-
-                                    {field.type === 'date' && (
-                                        <Input
-                                            type="datetime-local"
-                                            required={field.required}
-                                            className="h-16 rounded-2xl border-slate-100 bg-slate-50/50 focus:bg-white text-lg font-medium"
-                                            value={fd[field.id] || ""}
-                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                        />
-                                    )}
-
-                                    {field.type === 'select' && (
-                                        <Select onValueChange={(val) => handleInputChange(field.id, val)} value={fd[field.id] || ""} required={field.required}>
-                                            <SelectTrigger className="h-16 rounded-2xl border-slate-100 bg-slate-50/50 text-lg font-medium">
-                                                <SelectValue placeholder="Choose an option..." />
-                                            </SelectTrigger>
-                                            <SelectContent className="rounded-2xl border-slate-100">
-                                                {field.options?.map((opt: string) => (
-                                                    <SelectItem key={opt} value={opt} className="rounded-xl font-bold">{opt}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-
-                                    {field.type === 'geotag' && (
-                                        <div className="space-y-4">
-                                            {loc ? (
-                                                <div className="h-64 w-full rounded-2xl overflow-hidden border border-slate-200 relative">
-                                                    <MapContainer
-                                                        center={[loc.lat, loc.lng]}
-                                                        zoom={15}
-                                                        scrollWheelZoom={false}
-                                                        className="h-full w-full"
-                                                    >
-                                                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                                                        <Marker
-                                                            position={[loc.lat, loc.lng]}
-                                                            draggable={true}
-                                                            eventHandlers={{
-                                                                dragend: (e) => {
-                                                                    const marker = e.target;
-                                                                    const position = marker.getLatLng();
-                                                                    setLoc({ lat: position.lat, lng: position.lng });
-                                                                }
-                                                            }}
-                                                        />
-                                                    </MapContainer>
-                                                    <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-xl border border-slate-200 z-[1000] flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                                                            <span className="text-[10px] font-black uppercase tracking-tighter">Verified: {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
-                                                        </div>
-                                                        <Button type="button" variant="ghost" onClick={captureLocation} className="h-6 px-2 text-[10px] font-black text-blue-600">Recalibrate</Button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="bg-slate-50/50 p-12 text-center rounded-[32px] border-2 border-dashed border-slate-100">
-                                                    <MapPin className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                                                    <p className="text-sm font-bold text-slate-400 mb-6">Location access required</p>
-                                                    <Button type="button" onClick={captureLocation} className="h-12 px-8 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-xl shadow-blue-100">
-                                                        Capture Current Location
-                                                    </Button>
-                                                </div>
+                            {form.schema?.fields?.map((field: any) => {
+                                // Section Divider Field
+                                if (field.type === 'section') {
+                                    return (
+                                        <div key={field.id} className="pt-4 pb-2 border-b border-slate-200">
+                                            <h3 className="text-base font-bold text-slate-900">{field.label}</h3>
+                                            {field.placeholder && (
+                                                <p className="text-xs text-slate-500 mt-0.5">{field.placeholder}</p>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+                                    );
+                                }
 
-                            <Button
-                                type="submit"
-                                className="w-full h-20 bg-slate-900 hover:bg-slate-800 text-white rounded-[24px] font-black text-xl flex items-center justify-center gap-3 shadow-2xl shadow-slate-200 transition-all active:scale-[0.98] mt-10"
-                                disabled={submitting}
-                            >
-                                {submitting ? <Loader2 className="w-6 h-6 animate-spin" /> : (
-                                    <>
-                                        {offlineId ? 'Resubmit Data' : 'Submit Data'}
-                                        {isOffline ? <Zap className="w-5 h-5 text-blue-400 ml-2" /> : <Send className="w-5 h-5 ml-2" />}
-                                    </>
-                                )}
-                            </Button>
+                                return (
+                                    <div key={field.id} className="space-y-1.5">
+                                        <Label className="block text-sm font-semibold text-slate-800">
+                                            {field.label}
+                                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                                        </Label>
+
+                                        {/* Short Text */}
+                                        {(field.type === 'text' || field.type === 'email' || field.type === 'phone') && (
+                                            <Input
+                                                type={field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
+                                                required={field.required}
+                                                className="h-10 px-3 rounded border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-colors"
+                                                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                                                value={fd[field.id] || ""}
+                                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            />
+                                        )}
+
+                                        {/* Textarea */}
+                                        {field.type === 'textarea' && (
+                                            <textarea
+                                                required={field.required}
+                                                rows={4}
+                                                className="w-full px-3 py-2 rounded border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-colors"
+                                                placeholder={field.placeholder || `Enter details...`}
+                                                value={fd[field.id] || ""}
+                                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            />
+                                        )}
+
+                                        {/* Number */}
+                                        {field.type === 'number' && (
+                                            <Input
+                                                type="number"
+                                                required={field.required}
+                                                className="h-10 px-3 rounded border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                                                placeholder={field.placeholder || "0"}
+                                                value={fd[field.id] || ""}
+                                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            />
+                                        )}
+
+                                        {/* Date / Time */}
+                                        {field.type === 'date' && (
+                                            <Input
+                                                type="datetime-local"
+                                                required={field.required}
+                                                className="h-10 px-3 rounded border border-slate-300 bg-white text-sm text-slate-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                                                value={fd[field.id] || ""}
+                                                onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                            />
+                                        )}
+
+                                        {/* Select Dropdown */}
+                                        {field.type === 'select' && (
+                                            <Select onValueChange={(val) => handleInputChange(field.id, val)} value={fd[field.id] || ""} required={field.required}>
+                                                <SelectTrigger className="h-10 rounded border border-slate-300 bg-white text-sm text-slate-900">
+                                                    <SelectValue placeholder="-- Select Option --" />
+                                                </SelectTrigger>
+                                                <SelectContent className="border-slate-200 shadow-md">
+                                                    {field.options?.map((opt: string) => (
+                                                        <SelectItem key={opt} value={opt} className="text-sm font-medium">{opt}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+
+                                        {/* Checkbox */}
+                                        {field.type === 'checkbox' && (
+                                            <label className="flex items-center gap-2.5 cursor-pointer pt-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!fd[field.id]}
+                                                    onChange={(e) => handleInputChange(field.id, e.target.checked)}
+                                                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm text-slate-700 font-medium">{field.placeholder || "Yes, confirm"}</span>
+                                            </label>
+                                        )}
+
+                                        {/* Radio Group */}
+                                        {field.type === 'radio' && (
+                                            <div className="space-y-2 pt-1">
+                                                {(field.options || []).map((opt: string) => (
+                                                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name={`radio_${field.id}`}
+                                                            value={opt}
+                                                            checked={fd[field.id] === opt}
+                                                            onChange={(e) => handleInputChange(field.id, e.target.value)}
+                                                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-sm text-slate-700 font-medium">{opt}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Flat Data Table Grid */}
+                                        {field.type === 'table' && (
+                                            <div className="space-y-3 pt-1">
+                                                {(() => {
+                                                    const rows: any[] = Array.isArray(fd[field.id]) && fd[field.id].length > 0
+                                                        ? fd[field.id]
+                                                        : Array.from({ length: field.minRows || 1 }, () => ({}));
+                                                    const cols: any[] = field.columns || [];
+
+                                                    const updateTableCell = (rIdx: number, colId: string, val: any) => {
+                                                        const newRows = [...rows];
+                                                        newRows[rIdx] = { ...(newRows[rIdx] || {}), [colId]: val };
+                                                        handleInputChange(field.id, newRows);
+                                                    };
+
+                                                    const addRow = () => {
+                                                        if (field.maxRows && rows.length >= field.maxRows) return;
+                                                        handleInputChange(field.id, [...rows, {}]);
+                                                    };
+
+                                                    const removeRow = (rIdx: number) => {
+                                                        if (rows.length <= (field.minRows || 1)) return;
+                                                        const newRows = rows.filter((_, i) => i !== rIdx);
+                                                        handleInputChange(field.id, newRows);
+                                                    };
+
+                                                    return (
+                                                        <div className="border border-slate-300 rounded bg-slate-50/30 p-3 space-y-3">
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-left bg-white border border-slate-200 text-xs border-collapse">
+                                                                    <thead>
+                                                                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                                                                            <th className="p-2 w-8 text-center text-slate-400">#</th>
+                                                                            {cols.map((col: any) => (
+                                                                                <th key={col.id} className="p-2 border-r border-slate-200 font-semibold">
+                                                                                    {col.label} {col.required && <span className="text-red-500">*</span>}
+                                                                                </th>
+                                                                            ))}
+                                                                            <th className="p-2 w-8 text-center"></th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-200">
+                                                                        {rows.map((rowObj: any, rIdx: number) => (
+                                                                            <tr key={rIdx} className="hover:bg-slate-50">
+                                                                                <td className="p-2 text-center font-bold text-slate-400">{rIdx + 1}</td>
+                                                                                {cols.map((col: any) => (
+                                                                                    <td key={col.id} className="p-1.5 border-r border-slate-200">
+                                                                                        {col.type === 'text' && (
+                                                                                            <Input
+                                                                                                required={col.required || field.required}
+                                                                                                value={rowObj[col.id] || ""}
+                                                                                                onChange={(e) => updateTableCell(rIdx, col.id, e.target.value)}
+                                                                                                className="h-8 text-xs rounded border-slate-300 bg-white"
+                                                                                                placeholder={`Enter ${col.label.toLowerCase()}`}
+                                                                                            />
+                                                                                        )}
+                                                                                        {col.type === 'number' && (
+                                                                                            <Input
+                                                                                                type="number"
+                                                                                                required={col.required || field.required}
+                                                                                                value={rowObj[col.id] || ""}
+                                                                                                onChange={(e) => updateTableCell(rIdx, col.id, e.target.value)}
+                                                                                                className="h-8 text-xs rounded border-slate-300 bg-white"
+                                                                                                placeholder="0"
+                                                                                            />
+                                                                                        )}
+                                                                                        {col.type === 'date' && (
+                                                                                            <Input
+                                                                                                type="date"
+                                                                                                required={col.required || field.required}
+                                                                                                value={rowObj[col.id] || ""}
+                                                                                                onChange={(e) => updateTableCell(rIdx, col.id, e.target.value)}
+                                                                                                className="h-8 text-xs rounded border-slate-300 bg-white"
+                                                                                            />
+                                                                                        )}
+                                                                                        {col.type === 'select' && (
+                                                                                            <Select
+                                                                                                value={rowObj[col.id] || ""}
+                                                                                                onValueChange={(val) => updateTableCell(rIdx, col.id, val)}
+                                                                                            >
+                                                                                                <SelectTrigger className="h-8 text-xs rounded border-slate-300 bg-white">
+                                                                                                    <SelectValue placeholder="Select..." />
+                                                                                                </SelectTrigger>
+                                                                                                <SelectContent>
+                                                                                                    {(col.options || []).map((opt: string) => (
+                                                                                                        <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                                                                                                    ))}
+                                                                                                </SelectContent>
+                                                                                            </Select>
+                                                                                        )}
+                                                                                        {col.type === 'checkbox' && (
+                                                                                            <div className="flex items-center justify-center h-8">
+                                                                                                <input
+                                                                                                    type="checkbox"
+                                                                                                    checked={!!rowObj[col.id]}
+                                                                                                    onChange={(e) => updateTableCell(rIdx, col.id, e.target.checked)}
+                                                                                                    className="w-4 h-4 rounded text-blue-600 border-slate-300"
+                                                                                                />
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </td>
+                                                                                ))}
+                                                                                <td className="p-1.5 text-center">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => removeRow(rIdx)}
+                                                                                        disabled={rows.length <= (field.minRows || 1)}
+                                                                                        className="p-1 rounded text-slate-400 hover:text-red-600 disabled:opacity-30"
+                                                                                        title="Remove Row"
+                                                                                    >
+                                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                            <div className="flex items-center justify-between pt-1">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={addRow}
+                                                                    disabled={Boolean(field.maxRows && rows.length >= field.maxRows)}
+                                                                    className="h-8 px-3 rounded border-slate-300 text-xs font-medium gap-1 text-slate-700 bg-white hover:bg-slate-50"
+                                                                >
+                                                                    <Plus className="w-3.5 h-3.5 text-blue-600" /> Add Row
+                                                                </Button>
+                                                                {field.maxRows && (
+                                                                    <span className="text-xs text-slate-500">
+                                                                        Max: {field.maxRows} rows
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+
+                                        {/* Geotag Field */}
+                                        {field.type === 'geotag' && (
+                                            <div className="space-y-3 pt-1">
+                                                {loc ? (
+                                                    <div className="h-56 w-full rounded border border-slate-300 overflow-hidden relative">
+                                                        <MapContainer
+                                                            center={[loc.lat, loc.lng]}
+                                                            zoom={15}
+                                                            scrollWheelZoom={false}
+                                                            className="h-full w-full"
+                                                        >
+                                                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                                            <Marker
+                                                                position={[loc.lat, loc.lng]}
+                                                                draggable={true}
+                                                                eventHandlers={{
+                                                                    dragend: (e) => {
+                                                                        const marker = e.target;
+                                                                        const position = marker.getLatLng();
+                                                                        setLoc({ lat: position.lat, lng: position.lng });
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </MapContainer>
+                                                        <div className="absolute bottom-3 left-3 right-3 bg-white p-2.5 rounded border border-slate-300 z-[1000] flex items-center justify-between shadow-sm">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                                                                <span className="text-xs font-semibold text-slate-800">Coordinates: {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
+                                                            </div>
+                                                            <Button type="button" variant="ghost" onClick={captureLocation} className="h-7 px-2 text-xs font-semibold text-blue-600">Recalibrate</Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-slate-50 p-8 text-center rounded border border-dashed border-slate-300">
+                                                        <MapPin className="w-6 h-6 text-slate-400 mx-auto mb-2" />
+                                                        <p className="text-xs font-medium text-slate-600 mb-4">Location coordinates required</p>
+                                                        <Button type="button" onClick={captureLocation} className="h-9 px-4 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium">
+                                                            Get Current Coordinates
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                    </div>
+                                );
+                            })}
+
+                            <div className="pt-4 border-t border-slate-200">
+                                <Button
+                                    type="submit"
+                                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                    disabled={submitting}
+                                >
+                                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                                        <>
+                                            {offlineId ? 'Save Offline Submission' : 'Submit Form'}
+                                            {isOffline ? <Zap className="w-4 h-4 text-amber-300" /> : <Send className="w-4 h-4" />}
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </form>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
+
+                <p className="text-center text-xs text-slate-400 font-medium">
+                    Powered by Blesh Forms • Secured with SSL Encryption
+                </p>
+
             </div>
         </div>
     );

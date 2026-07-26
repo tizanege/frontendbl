@@ -22,7 +22,9 @@
     "migration:generate": "npm run build && npm run typeorm -- migration:generate",
     "migration:run": "npm run build && npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:create": "npx typeorm migration:create"
+    "migration:create": "npx typeorm migration:create",
+    "seed": "npm run build && ts-node -r tsconfig-paths/register src/seed.ts",
+    "promote-pro": "ts-node -r tsconfig-paths/register src/promote-to-pro.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
@@ -43,6 +45,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "dotenv": "^17.3.1",
+    "jwks-rsa": "^4.1.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",

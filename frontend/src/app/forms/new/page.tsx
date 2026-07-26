@@ -8,7 +8,8 @@ import {
     ChevronDown, AlignLeft, Mail, Phone, CircleDot, Image as ImageIcon,
     SeparatorHorizontal, Loader2, ChevronRight, Undo2, Redo2, Check,
     Cloud, CloudOff, Copy, Layers, ToggleLeft, ShieldCheck, Cog,
-    FileText, Clock, ChevronUp, X, Grid3X3, AlertCircle, PenLine, Building
+    FileText, Clock, ChevronUp, X, Grid3X3, AlertCircle, PenLine, Building,
+    Table as TableIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,15 @@ import api from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type FieldType = "text" | "textarea" | "number" | "email" | "phone" | "date" | "select" | "checkbox" | "radio" | "geotag" | "image" | "section" | "signature" | "logo";
+export interface TableColumn {
+    id: string;
+    label: string;
+    type: "text" | "number" | "select" | "date" | "checkbox";
+    options?: string[];
+    required?: boolean;
+}
+
+type FieldType = "text" | "textarea" | "number" | "email" | "phone" | "date" | "select" | "checkbox" | "radio" | "geotag" | "image" | "section" | "signature" | "logo" | "table";
 
 interface FormField {
     id: string;
@@ -30,6 +39,10 @@ interface FormField {
     required: boolean;
     options?: string[];
     placeholder?: string;
+    // Table field specific
+    columns?: TableColumn[];
+    minRows?: number;
+    maxRows?: number;
     // Validation
     minLength?: number;
     maxLength?: number;
@@ -79,8 +92,9 @@ const FIELD_TYPE_GROUPS = [
         ]
     },
     {
-        group: "Special",
+        group: "Special & Data",
         items: [
+            { type: "table", label: "Data Table", icon: TableIcon },
             { type: "image", label: "Image", icon: ImageIcon },
             { type: "geotag", label: "Geo Pin", icon: MapPin },
             { type: "section", label: "Section", icon: SeparatorHorizontal },
@@ -201,11 +215,17 @@ export default function FormBuilderPage() {
         const meta = getFieldMeta(type);
         const newField: FormField = {
             id: Math.random().toString(36).substr(2, 9),
-            label: meta.label + " Field",
+            label: type === "table" ? "Data Table Grid" : meta.label + " Field",
             type,
             required: false,
             placeholder: "",
             options: ["select", "checkbox", "radio"].includes(type) ? ["Option 1", "Option 2"] : undefined,
+            columns: type === "table" ? [
+                { id: "col_" + Math.random().toString(36).substr(2, 6), label: "Item Description", type: "text", required: true },
+                { id: "col_" + Math.random().toString(36).substr(2, 6), label: "Quantity", type: "number", required: false },
+                { id: "col_" + Math.random().toString(36).substr(2, 6), label: "Status", type: "select", options: ["Pending", "In Progress", "Completed"], required: false }
+            ] : undefined,
+            minRows: type === "table" ? 1 : undefined,
         };
         history.set([...fields, newField]);
         setSelectedFieldId(newField.id);
@@ -503,62 +523,103 @@ export default function FormBuilderPage() {
                                                 onDrop={(e) => handleDrop(e, index)}
                                                 onClick={(e) => { e.stopPropagation(); setSelectedFieldId(field.id); }}
                                                 className={`
-                                                    relative flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-white transition-all cursor-pointer select-none
+                                                    relative flex flex-col gap-2 p-3 rounded-xl border bg-white transition-all cursor-pointer select-none
                                                     ${isDragging ? "opacity-30 scale-[0.97] border-blue-300 ring-2 ring-blue-100" : ""}
                                                     ${isSelected ? "border-blue-400 ring-2 ring-blue-100 shadow-md" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}
                                                     ${field.type === "section" ? "border-l-[3px] border-l-purple-400" : ""}
+                                                    ${field.type === "table" ? "border-l-[3px] border-l-blue-500" : ""}
                                                     ${field.hidden ? "opacity-50" : ""}
                                                 `}
                                             >
-                                                {/* Grip */}
-                                                <div className="cursor-grab active:cursor-grabbing text-slate-200 hover:text-blue-500 transition-colors shrink-0">
-                                                    <GripVertical className="w-3.5 h-3.5" />
+                                                <div className="flex items-center gap-2 w-full">
+                                                    {/* Grip */}
+                                                    <div className="cursor-grab active:cursor-grabbing text-slate-200 hover:text-blue-500 transition-colors shrink-0">
+                                                        <GripVertical className="w-3.5 h-3.5" />
+                                                    </div>
+
+                                                    {/* Icon */}
+                                                    <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${field.type === "section" ? "bg-purple-50 text-purple-500" :
+                                                        field.type === "table" ? "bg-blue-100 text-blue-600" :
+                                                            field.type === "geotag" ? "bg-emerald-50 text-emerald-500" :
+                                                                field.type === "signature" ? "bg-indigo-50 text-indigo-600" :
+                                                                    field.type === "logo" ? "bg-slate-100 text-slate-600" :
+                                                                        field.type === "image" ? "bg-amber-50 text-amber-500" :
+                                                                            "bg-blue-50 text-blue-500"
+                                                        }`}>
+                                                        <Icon className="w-3 h-3" />
+                                                    </div>
+
+                                                    {/* Label */}
+                                                    <input
+                                                        value={field.label}
+                                                        onChange={(e) => updateField(field.id, { label: e.target.value })}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="flex-1 text-sm font-semibold text-slate-800 bg-transparent outline-none min-w-0 truncate"
+                                                        placeholder="Field label"
+                                                    />
+
+                                                    {/* Indicators */}
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {field.required && <div className="w-1.5 h-1.5 bg-red-400 rounded-full" title="Required" />}
+                                                        {field.hidden && <Eye className="w-3 h-3 text-slate-300" />}
+                                                        <span className="text-[9px] font-semibold text-slate-300 uppercase tracking-wider hidden sm:inline">{meta.label}</span>
+                                                    </div>
+
+                                                    {/* Floating toolbar on hover/select */}
+                                                    <div className={`absolute -top-8 right-2 flex items-center gap-0.5 bg-slate-900 rounded-lg px-1 py-0.5 shadow-xl transition-all z-40 ${isSelected ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none group-hover/item:opacity-100 group-hover/item:translate-y-0 group-hover/item:pointer-events-auto"
+                                                        }`}>
+                                                        <button onClick={(e) => { e.stopPropagation(); duplicateField(field.id); }} className="p-1 text-white/60 hover:text-white rounded" title="Duplicate">
+                                                            <Copy className="w-3 h-3" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); updateField(field.id, { required: !field.required }); }} className={`p-1 rounded ${field.required ? "text-red-400" : "text-white/60 hover:text-white"}`} title="Toggle Required">
+                                                            <AlertCircle className="w-3 h-3" />
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); updateField(field.id, { hidden: !field.hidden }); }} className={`p-1 rounded ${field.hidden ? "text-amber-400" : "text-white/60 hover:text-white"}`} title="Toggle Visibility">
+                                                            <Eye className="w-3 h-3" />
+                                                        </button>
+                                                        <div className="w-px h-3 bg-white/10 mx-0.5" />
+                                                        <button onClick={(e) => { e.stopPropagation(); removeField(field.id); }} className="p-1 text-white/60 hover:text-red-400 rounded" title="Delete">
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
                                                 </div>
 
-                                                {/* Icon */}
-                                                <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${field.type === "section" ? "bg-purple-50 text-purple-500" :
-                                                    field.type === "geotag" ? "bg-emerald-50 text-emerald-500" :
-                                                        field.type === "signature" ? "bg-indigo-50 text-indigo-600" :
-                                                            field.type === "logo" ? "bg-slate-100 text-slate-600" :
-                                                                field.type === "image" ? "bg-amber-50 text-amber-500" :
-                                                                    "bg-blue-50 text-blue-500"
-                                                    }`}>
-                                                    <Icon className="w-3 h-3" />
-                                                </div>
-
-                                                {/* Label */}
-                                                <input
-                                                    value={field.label}
-                                                    onChange={(e) => updateField(field.id, { label: e.target.value })}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="flex-1 text-sm font-semibold text-slate-800 bg-transparent outline-none min-w-0 truncate"
-                                                    placeholder="Field label"
-                                                />
-
-                                                {/* Indicators */}
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    {field.required && <div className="w-1.5 h-1.5 bg-red-400 rounded-full" title="Required" />}
-                                                    {field.hidden && <Eye className="w-3 h-3 text-slate-300" />}
-                                                    <span className="text-[9px] font-semibold text-slate-300 uppercase tracking-wider hidden sm:inline">{meta.label}</span>
-                                                </div>
-
-                                                {/* Floating toolbar on hover/select */}
-                                                <div className={`absolute -top-8 right-2 flex items-center gap-0.5 bg-slate-900 rounded-lg px-1 py-0.5 shadow-xl transition-all z-40 ${isSelected ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none group-hover/item:opacity-100 group-hover/item:translate-y-0 group-hover/item:pointer-events-auto"
-                                                    }`}>
-                                                    <button onClick={(e) => { e.stopPropagation(); duplicateField(field.id); }} className="p-1 text-white/60 hover:text-white rounded" title="Duplicate">
-                                                        <Copy className="w-3 h-3" />
-                                                    </button>
-                                                    <button onClick={(e) => { e.stopPropagation(); updateField(field.id, { required: !field.required }); }} className={`p-1 rounded ${field.required ? "text-red-400" : "text-white/60 hover:text-white"}`} title="Toggle Required">
-                                                        <AlertCircle className="w-3 h-3" />
-                                                    </button>
-                                                    <button onClick={(e) => { e.stopPropagation(); updateField(field.id, { hidden: !field.hidden }); }} className={`p-1 rounded ${field.hidden ? "text-amber-400" : "text-white/60 hover:text-white"}`} title="Toggle Visibility">
-                                                        <Eye className="w-3 h-3" />
-                                                    </button>
-                                                    <div className="w-px h-3 bg-white/10 mx-0.5" />
-                                                    <button onClick={(e) => { e.stopPropagation(); removeField(field.id); }} className="p-1 text-white/60 hover:text-red-400 rounded" title="Delete">
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                </div>
+                                                {/* Mini Table Canvas Preview */}
+                                                {field.type === "table" && (
+                                                    <div className="mt-1 w-full overflow-x-auto rounded-lg border border-slate-100 bg-slate-50/70 p-2">
+                                                        <div className="flex items-center justify-between mb-1.5 px-1">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                                <TableIcon className="w-3 h-3 text-blue-500" />
+                                                                {(field.columns || []).length} Columns configured
+                                                            </span>
+                                                            <Badge variant="outline" className="text-[9px] font-semibold bg-white text-slate-500">
+                                                                Min: {field.minRows || 0} rows
+                                                            </Badge>
+                                                        </div>
+                                                        <table className="w-full text-left text-xs bg-white rounded border border-slate-200 overflow-hidden">
+                                                            <thead>
+                                                                <tr className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                                                                    {(field.columns || []).map((col) => (
+                                                                        <th key={col.id} className="p-1.5 border-r border-slate-200 text-[10px]">
+                                                                            {col.label} {col.required && <span className="text-red-500">*</span>}
+                                                                        </th>
+                                                                    ))}
+                                                                    <th className="p-1.5 text-center text-[10px] w-8">#</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr className="border-b border-slate-100 text-slate-400 text-[11px]">
+                                                                    {(field.columns || []).map((col) => (
+                                                                        <td key={col.id} className="p-1.5 border-r border-slate-100 bg-white/50 italic text-[10px]">
+                                                                            {col.type === "select" ? `[${(col.options || []).join(" | ")}]` : `(${col.type})`}
+                                                                        </td>
+                                                                    ))}
+                                                                    <td className="p-1.5 text-center text-[10px] text-slate-300">1</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -643,6 +704,100 @@ export default function FormBuilderPage() {
                                             </PropSection>
                                         )}
 
+                                        {selectedField.type === "table" && (
+                                            <PropSection title="Table Columns">
+                                                <div className="space-y-3">
+                                                    {(selectedField.columns || []).map((col, idx) => (
+                                                        <div key={col.id || idx} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                                                            <div className="flex items-center justify-between gap-1">
+                                                                <span className="text-[10px] font-bold text-slate-400">Col #{idx + 1}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updatedCols = (selectedField.columns || []).filter((_, i) => i !== idx);
+                                                                        updateField(selectedField.id, { columns: updatedCols });
+                                                                    }}
+                                                                    className="text-slate-400 hover:text-red-500 p-1"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                            <Input
+                                                                value={col.label}
+                                                                onChange={(e) => {
+                                                                    const updatedCols = (selectedField.columns || []).map((c, i) => i === idx ? { ...c, label: e.target.value } : c);
+                                                                    updateField(selectedField.id, { columns: updatedCols });
+                                                                }}
+                                                                placeholder="Column Header"
+                                                                className="h-7 text-xs bg-white"
+                                                            />
+                                                            <div className="flex items-center gap-2">
+                                                                <Select
+                                                                    value={col.type}
+                                                                    onValueChange={(val: any) => {
+                                                                        const updatedCols = (selectedField.columns || []).map((c, i) => i === idx ? { ...c, type: val } : c);
+                                                                        updateField(selectedField.id, { columns: updatedCols });
+                                                                    }}
+                                                                >
+                                                                    <SelectTrigger className="h-7 text-xs bg-white flex-1">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="text">Short Text</SelectItem>
+                                                                        <SelectItem value="number">Number</SelectItem>
+                                                                        <SelectItem value="select">Dropdown</SelectItem>
+                                                                        <SelectItem value="date">Date</SelectItem>
+                                                                        <SelectItem value="checkbox">Checkbox</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <label className="flex items-center gap-1 text-[10px] font-medium text-slate-600 shrink-0">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={col.required || false}
+                                                                        onChange={(e) => {
+                                                                            const updatedCols = (selectedField.columns || []).map((c, i) => i === idx ? { ...c, required: e.target.checked } : c);
+                                                                            updateField(selectedField.id, { columns: updatedCols });
+                                                                        }}
+                                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                    />
+                                                                    Req
+                                                                </label>
+                                                            </div>
+                                                            {col.type === "select" && (
+                                                                <Input
+                                                                    value={(col.options || []).join(", ")}
+                                                                    onChange={(e) => {
+                                                                        const opts = e.target.value.split(",").map(s => s.trim());
+                                                                        const updatedCols = (selectedField.columns || []).map((c, i) => i === idx ? { ...c, options: opts } : c);
+                                                                        updateField(selectedField.id, { columns: updatedCols });
+                                                                    }}
+                                                                    placeholder="Option 1, Option 2"
+                                                                    className="h-7 text-xs bg-white"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const newCol: TableColumn = {
+                                                                id: "col_" + Math.random().toString(36).substr(2, 6),
+                                                                label: "New Column",
+                                                                type: "text",
+                                                                required: false
+                                                            };
+                                                            updateField(selectedField.id, { columns: [...(selectedField.columns || []), newCol] });
+                                                        }}
+                                                        className="w-full h-8 text-xs font-semibold rounded-lg border-dashed"
+                                                    >
+                                                        <Plus className="w-3 h-3 mr-1" /> Add Column
+                                                    </Button>
+                                                </div>
+                                            </PropSection>
+                                        )}
+
                                         <PropSection title="Default Value">
                                             <Input value={selectedField.defaultValue || ""} onChange={(e) => updateField(selectedField.id, { defaultValue: e.target.value })}
                                                 placeholder="Default value..." className="h-8 rounded-lg text-sm" />
@@ -659,6 +814,18 @@ export default function FormBuilderPage() {
 
                                 {propertyTab === "validation" && (
                                     <>
+                                        {selectedField.type === "table" && (
+                                            <>
+                                                <PropSection title="Minimum Rows Required">
+                                                    <Input type="number" value={selectedField.minRows ?? ""} onChange={(e) => updateField(selectedField.id, { minRows: e.target.value ? Number(e.target.value) : undefined })}
+                                                        placeholder="e.g. 1" className="h-8 rounded-lg text-sm" />
+                                                </PropSection>
+                                                <PropSection title="Maximum Rows Allowed">
+                                                    <Input type="number" value={selectedField.maxRows ?? ""} onChange={(e) => updateField(selectedField.id, { maxRows: e.target.value ? Number(e.target.value) : undefined })}
+                                                        placeholder="No limit" className="h-8 rounded-lg text-sm" />
+                                                </PropSection>
+                                            </>
+                                        )}
                                         {["text", "textarea", "email", "phone"].includes(selectedField.type) && (
                                             <>
                                                 <PropSection title="Min Length">

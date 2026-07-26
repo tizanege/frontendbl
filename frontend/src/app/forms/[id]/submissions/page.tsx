@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -16,7 +17,10 @@ import {
     Loader2,
     LayoutGrid,
     Map as MapIcon,
-    FileText
+    FileText,
+    ChevronDown,
+    ChevronRight,
+    Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +37,59 @@ const FieldMap = dynamic(() => import("@/components/FieldMap"), {
     loading: () => <div className="h-[600px] w-full bg-slate-50 animate-pulse rounded-[40px]" />
 });
 
+/** Format a simple scalar value for display */
+function formatScalarValue(val: any): string {
+    if (val === null || val === undefined || val === "") return "—";
+    if (typeof val === "boolean") return val ? "Yes" : "No";
+    return String(val);
+}
+
+/** Render an inline mini-table for table field data in the on-screen view */
+function TableFieldPreview({ rows, columns }: { rows: any[]; columns: any[] }) {
+    if (!rows || rows.length === 0) {
+        return <span className="text-slate-300 text-xs italic">No rows</span>;
+    }
+    return (
+        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            <table className="w-full text-xs">
+                <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-3 py-2 text-left font-black text-slate-500 text-[10px] uppercase tracking-wider w-8">#</th>
+                        {columns.map((col: any) => (
+                            <th key={col.id} className="px-3 py-2 text-left font-black text-slate-500 text-[10px] uppercase tracking-wider">
+                                {col.label}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {rows.map((row: any, rowIdx: number) => (
+                        <tr key={rowIdx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-3 py-2 text-slate-400 font-bold">{rowIdx + 1}</td>
+                            {columns.map((col: any) => (
+                                <td key={col.id} className="px-3 py-2 text-slate-700 font-medium">
+                                    {col.type === "checkbox" ? (
+                                        row[col.id] ? (
+                                            <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                Yes
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-300">No</span>
+                                        )
+                                    ) : (
+                                        formatScalarValue(row[col.id])
+                                    )}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export default function SubmissionsPage() {
     const { id } = useParams();
     const router = useRouter();
@@ -40,6 +97,7 @@ export default function SubmissionsPage() {
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const fetchData = async () => {
@@ -59,34 +117,138 @@ export default function SubmissionsPage() {
         if (id) fetchData();
     }, [id]);
 
+    const toggleRowExpanded = (subId: string) => {
+        setExpandedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(subId)) next.delete(subId);
+            else next.add(subId);
+            return next;
+        });
+    };
+
+    // Check if the form has any table fields
+    const tableFields = form?.schema?.fields?.filter((f: any) => f.type === "table") || [];
+    const hasTableFields = tableFields.length > 0;
+
+    /** Export PDF with each submission formatted as vertical rows (field per row) */
     const exportPDF = () => {
-        const doc = new jsPDF();
+        const doc = new jsPDF({ orientation: "portrait" });
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
 
-        // Add Title
-        doc.setFontSize(22);
-        doc.text("Field Operations Report", 14, 20);
+        // Header Banner
+        doc.setFillColor(15, 23, 42); // slate-900
+        doc.rect(0, 0, pageWidth, 35, 'F');
 
-        doc.setFontSize(12);
-        doc.setTextColor(100);
-        doc.text(`Form: ${form.name}`, 14, 30);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 37);
-        doc.text(`Total Submissions: ${submissions.length}`, 14, 44);
+        doc.setFontSize(18);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.text("Field Operations Report", 14, 18);
 
-        const tableColumn = ["ID", "Captured At", ...form.schema.fields.map((f: any) => f.label), "Location"];
-        const tableRows = submissions.map(sub => [
-            sub.id.substring(0, 8).toUpperCase(),
-            new Date(sub.submitted_at).toLocaleString(),
-            ...form.schema.fields.map((f: any) => sub.data[f.id] || "N/A"),
-            sub.location ? `${sub.location.lat.toFixed(4)}, ${sub.location.lng.toFixed(4)}` : "No Geo"
-        ]);
+        doc.setFontSize(9);
+        doc.setTextColor(203, 213, 225); // slate-300
+        doc.setFont("helvetica", "normal");
+        doc.text(`Form: ${form.name}  |  Generated: ${new Date().toLocaleString()}  |  Total Submissions: ${submissions.length}`, 14, 28);
 
-        autoTable(doc, {
-            head: [tableColumn],
-            body: tableRows,
-            startY: 60,
-            theme: 'striped',
-            headStyles: { fillColor: [15, 23, 42], fontStyle: 'bold' as const },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
+        let currentY = 43;
+
+        submissions.forEach((sub, subIdx) => {
+            // Check remaining vertical space before adding a new submission section
+            if (currentY > pageHeight - 60) {
+                doc.addPage();
+                currentY = 20;
+            }
+
+            // Submission Section Title Bar
+            doc.setFillColor(241, 245, 249); // slate-100
+            doc.roundedRect(14, currentY, pageWidth - 28, 12, 2, 2, 'F');
+
+            doc.setFontSize(9);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont("helvetica", "bold");
+            const locationStr = sub.location ? `${sub.location.lat.toFixed(4)}, ${sub.location.lng.toFixed(4)}` : "No Geo";
+            doc.text(
+                `Submission #${subIdx + 1}  •  ID: ${sub.id.substring(0, 8).toUpperCase()}  •  Captured: ${new Date(sub.submitted_at).toLocaleString()}  •  Location: ${locationStr}`,
+                18,
+                currentY + 8
+            );
+
+            currentY += 15;
+
+            // Build key-value rows for regular fields (Field Name on row 1, Value on row 1)
+            const fieldRows: string[][] = [];
+            const nestedTableFields: any[] = [];
+
+            (form.schema?.fields || []).forEach((field: any) => {
+                if (field.type === "table") {
+                    nestedTableFields.push(field);
+                } else {
+                    const value = formatScalarValue(sub.data[field.id]);
+                    fieldRows.push([field.label, value]);
+                }
+            });
+
+            if (fieldRows.length > 0) {
+                autoTable(doc, {
+                    head: [["Field Name", "Value / Response"]],
+                    body: fieldRows,
+                    startY: currentY,
+                    margin: { left: 14, right: 14 },
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+                    bodyStyles: { fontSize: 8.5, textColor: [51, 65, 85] },
+                    columnStyles: {
+                        0: { cellWidth: 70, fontStyle: 'bold', fillColor: [248, 250, 252] },
+                        1: { cellWidth: 'auto' }
+                    },
+                });
+
+                currentY = (doc as any).lastAutoTable.finalY + 8;
+            }
+
+            // Render Data Table fields as separate full-width grids under the submission
+            nestedTableFields.forEach((tf: any) => {
+                const rows = sub.data[tf.id];
+                const cols = tf.columns || [];
+
+                if (Array.isArray(rows) && rows.length > 0 && cols.length > 0) {
+                    if (currentY > pageHeight - 40) {
+                        doc.addPage();
+                        currentY = 20;
+                    }
+
+                    doc.setFontSize(9);
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(37, 99, 235); // blue-600
+                    doc.text(`Grid Table: ${tf.label} (${rows.length} Row${rows.length === 1 ? '' : 's'})`, 14, currentY);
+                    currentY += 4;
+
+                    const gridHeaders = ["#", ...cols.map((c: any) => c.label)];
+                    const gridRows = rows.map((row: any, rIdx: number) => [
+                        String(rIdx + 1),
+                        ...cols.map((c: any) => {
+                            const v = row[c.id];
+                            if (c.type === "checkbox") return v ? "Yes" : "No";
+                            return formatScalarValue(v);
+                        })
+                    ]);
+
+                    autoTable(doc, {
+                        head: [gridHeaders],
+                        body: gridRows,
+                        startY: currentY,
+                        margin: { left: 14, right: 14 },
+                        theme: 'grid',
+                        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+                        bodyStyles: { fontSize: 8 },
+                        alternateRowStyles: { fillColor: [239, 246, 255] },
+                    });
+
+                    currentY = (doc as any).lastAutoTable.finalY + 8;
+                }
+            });
+
+            currentY += 8;
         });
 
         doc.save(`${form.name}_Report.pdf`);
@@ -188,19 +350,25 @@ export default function SubmissionsPage() {
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="bg-slate-50/50">
-                                        <th className="px-10 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Submission ID</th>
-                                        <th className="px-10 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Captured At</th>
-                                        {form?.schema?.fields?.slice(0, 3).map((f: any) => (
-                                            <th key={f.id} className="px-10 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">{f.label}</th>
+                                        <th className="px-4 py-6 w-10"></th>
+                                        <th className="px-8 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Submission ID</th>
+                                        <th className="px-8 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Captured At</th>
+                                        {form?.schema?.fields?.slice(0, 4).map((f: any) => (
+                                            <th key={f.id} className="px-8 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">
+                                                {f.label}
+                                                {f.type === "table" && (
+                                                    <Badge className="ml-2 bg-blue-50 text-blue-600 border-blue-200 text-[8px] px-1.5 py-0 font-bold">GRID</Badge>
+                                                )}
+                                            </th>
                                         ))}
-                                        <th className="px-10 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Location</th>
-                                        <th className="px-10 py-6 text-right"></th>
+                                        <th className="px-8 py-6 text-slate-500 font-black uppercase tracking-widest text-[10px]">Location</th>
+                                        <th className="px-8 py-6 text-right"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {submissions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={10} className="px-10 py-32 text-center">
+                                            <td colSpan={20} className="px-10 py-32 text-center">
                                                 <div className="max-w-xs mx-auto">
                                                     <TableIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                                     <h3 className="text-slate-900 font-bold text-lg">No data yet</h3>
@@ -209,56 +377,136 @@ export default function SubmissionsPage() {
                                             </td>
                                         </tr>
                                     ) : (
-                                        submissions.map((sub) => (
-                                            <tr key={sub.id} className="hover:bg-slate-50/30 transition-colors group">
-                                                <td className="px-10 py-6 font-bold text-slate-400 text-xs">
-                                                    #{sub.id.substring(0, 8).toUpperCase()}
-                                                </td>
-                                                <td className="px-10 py-6">
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <p className="font-bold text-slate-900 text-sm">
-                                                            {new Date(sub.submitted_at).toLocaleDateString()}
-                                                        </p>
-                                                        <p className="text-[10px] text-slate-400 font-medium">
-                                                            {new Date(sub.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </p>
-                                                    </div>
-                                                </td>
-                                                {form?.schema?.fields?.slice(0, 3).map((f: any) => (
-                                                    <td key={f.id} className="px-10 py-6 font-medium text-slate-600">
-                                                        {sub.data[f.id] || <span className="text-slate-200 text-xs">—</span>}
-                                                    </td>
-                                                ))}
-                                                <td className="px-10 py-6">
-                                                    {sub.location ? (
-                                                        <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[10px] px-3 py-1 flex items-center gap-1.5 w-fit rounded-lg">
-                                                            <MapPin className="w-3 h-3" /> Pin Dropped
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-slate-300 text-[10px] font-black uppercase tracking-widest">No Geo</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-10 py-6 text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl hover:bg-slate-100 transition-colors">
-                                                                <MoreVertical className="w-4 h-4 text-slate-400" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="rounded-2xl border-slate-100 shadow-xl p-2 min-w-[160px]">
-                                                            <DropdownMenuItem className="rounded-xl font-bold cursor-pointer">View Full Details</DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                className="rounded-xl font-bold cursor-pointer"
-                                                                onClick={() => setViewMode('map')}
+                                        submissions.map((sub) => {
+                                            const isExpanded = expandedRows.has(sub.id);
+
+                                            return (
+                                                <React.Fragment key={sub.id}>
+                                                    <tr className="hover:bg-slate-50/30 transition-colors group cursor-pointer" onClick={() => toggleRowExpanded(sub.id)}>
+                                                        <td className="px-4 py-6">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); toggleRowExpanded(sub.id); }}
+                                                                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
                                                             >
-                                                                View on Map
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem className="rounded-xl font-bold cursor-pointer text-red-500">Flag Submission</DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </td>
-                                            </tr>
-                                        ))
+                                                                {isExpanded ? (
+                                                                    <ChevronDown className="w-4 h-4 text-blue-600" />
+                                                                ) : (
+                                                                    <ChevronRight className="w-4 h-4 text-slate-500" />
+                                                                )}
+                                                            </button>
+                                                        </td>
+                                                        <td className="px-8 py-6 font-bold text-slate-400 text-xs">
+                                                            #{sub.id.substring(0, 8).toUpperCase()}
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <p className="font-bold text-slate-900 text-sm">
+                                                                    {new Date(sub.submitted_at).toLocaleDateString()}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                                    {new Date(sub.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+                                                            </div>
+                                                        </td>
+                                                        {form?.schema?.fields?.slice(0, 4).map((f: any) => (
+                                                            <td key={f.id} className="px-8 py-6 font-medium text-slate-600">
+                                                                {f.type === "table" && Array.isArray(sub.data[f.id]) ? (
+                                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                                                                        <TableIcon className="w-3 h-3 mr-1.5" />
+                                                                        {sub.data[f.id].length} Row{sub.data[f.id].length === 1 ? '' : 's'}
+                                                                    </Badge>
+                                                                ) : (
+                                                                    formatScalarValue(sub.data[f.id])
+                                                                )}
+                                                            </td>
+                                                        ))}
+                                                        <td className="px-8 py-6">
+                                                            {sub.location ? (
+                                                                <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[10px] px-3 py-1 flex items-center gap-1.5 w-fit rounded-lg">
+                                                                    <MapPin className="w-3 h-3" /> Pin Dropped
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-slate-300 text-[10px] font-black uppercase tracking-widest">No Geo</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl hover:bg-slate-100 transition-colors">
+                                                                        <MoreVertical className="w-4 h-4 text-slate-400" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end" className="rounded-2xl border-slate-100 shadow-xl p-2 min-w-[160px]">
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl font-bold cursor-pointer"
+                                                                        onClick={() => toggleRowExpanded(sub.id)}
+                                                                    >
+                                                                        {isExpanded ? "Collapse Details" : "View Full Details"}
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl font-bold cursor-pointer"
+                                                                        onClick={() => setViewMode('map')}
+                                                                    >
+                                                                        View on Map
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Expanded Row: Full vertical card displaying all fields line by line */}
+                                                    {isExpanded && (
+                                                        <tr className="bg-slate-50/50">
+                                                            <td colSpan={20} className="px-8 py-6">
+                                                                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
+                                                                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                                                        <h4 className="font-black text-slate-900 text-base tracking-tight flex items-center gap-2">
+                                                                            <FileText className="w-4 h-4 text-blue-600" />
+                                                                            Full Submission Record (#{sub.id.substring(0, 8).toUpperCase()})
+                                                                        </h4>
+                                                                        <span className="text-xs font-bold text-slate-400">
+                                                                            Submitted on {new Date(sub.submitted_at).toLocaleString()}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {/* Regular Fields Vertical List */}
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        {(form?.schema?.fields || [])
+                                                                            .filter((f: any) => f.type !== "table")
+                                                                            .map((f: any) => (
+                                                                                <div key={f.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{f.label}</p>
+                                                                                    <p className="text-sm font-bold text-slate-800">{formatScalarValue(sub.data[f.id])}</p>
+                                                                                </div>
+                                                                            ))}
+                                                                    </div>
+
+                                                                    {/* Data Table Fields Grids */}
+                                                                    {tableFields.map((tf: any) => {
+                                                                        const rows = sub.data[tf.id];
+                                                                        if (!Array.isArray(rows) || rows.length === 0) return null;
+                                                                        const cols = tf.columns || [];
+
+                                                                        return (
+                                                                            <div key={tf.id} className="pt-2">
+                                                                                <div className="flex items-center gap-2 mb-3">
+                                                                                    <TableIcon className="w-4 h-4 text-blue-600" />
+                                                                                    <h5 className="font-black text-slate-800 text-sm tracking-tight">{tf.label}</h5>
+                                                                                    <Badge className="bg-blue-50 text-blue-600 border-blue-200 text-[9px] px-2 py-0 font-bold">
+                                                                                        {rows.length} Row{rows.length === 1 ? '' : 's'}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                                <TableFieldPreview rows={rows} columns={cols} />
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>

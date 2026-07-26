@@ -22,7 +22,7 @@ export default function LoginPage() {
         try {
             await login(formData);
         } catch (err: any) {
-            setError(err.response?.data?.message || "Login failed. Please check your credentials.");
+            setError(err.message || err.response?.data?.message || "Login failed. Please check your credentials.");
             setLoading(false);
         }
     };

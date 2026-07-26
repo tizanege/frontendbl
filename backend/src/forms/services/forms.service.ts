@@ -21,7 +21,28 @@ export class FormsService {
         private dispatchService: DispatchService,
     ) { }
 
+    async getStats() {
+        const tenantId = this.tenantContext.tenantId;
+        if (!tenantId) return { forms: 0, submissions: 0, geoTagged: 0 };
+
+        const formCount = await this.formRepository.count({ where: { tenant_id: tenantId } });
+        const submissionCount = await this.submissionRepository.count({ where: { tenant_id: tenantId } });
+
+        const geoTaggedCount = await this.submissionRepository
+            .createQueryBuilder('s')
+            .where('s.tenant_id = :tenantId', { tenantId })
+            .andWhere('s.location IS NOT NULL')
+            .getCount();
+
+        return {
+            forms: formCount,
+            submissions: submissionCount,
+            geoTagged: geoTaggedCount
+        };
+    }
+
     async getForms() {
+        if (!this.tenantContext.tenantId) return [];
         return this.formRepository.createQueryBuilder('form')
             .loadRelationCountAndMap('form.submissionsCount', 'form.submissions')
             .where('form.tenant_id = :tenantId', { tenantId: this.tenantContext.tenantId })
@@ -31,6 +52,7 @@ export class FormsService {
     }
 
     async getFormById(id: string) {
+        if (!this.tenantContext.tenantId) return null;
         return this.formRepository.findOne({
             where: { id, tenant_id: this.tenantContext.tenantId },
         });
@@ -46,10 +68,11 @@ export class FormsService {
 
     async createForm(formData: any) {
         const tenantId = this.tenantContext.tenantId;
+        if (!tenantId) throw new ForbiddenException('Tenant identification failed');
 
         // Check billing limits
         const sub = await this.billingService.getSubscriptionByTenant(tenantId);
-        if (!sub) throw new ForbiddenException('No active subscription found');
+        if (!sub || !sub.plan) throw new ForbiddenException('No active subscription found');
 
         const count = await this.formRepository.count({ where: { tenant_id: tenantId } });
 
@@ -132,23 +155,7 @@ export class FormsService {
         return savedSubmission;
     }
 
-    async getStats() {
-        const tenantId = this.tenantContext.tenantId;
-        const formCount = await this.formRepository.count({ where: { tenant_id: tenantId } });
-        const submissionCount = await this.submissionRepository.count({ where: { tenant_id: tenantId } });
 
-        const geoTaggedCount = await this.submissionRepository
-            .createQueryBuilder('s')
-            .where('s.tenant_id = :tenantId', { tenantId })
-            .andWhere('s.location IS NOT NULL')
-            .getCount();
-
-        return {
-            forms: formCount,
-            submissions: submissionCount,
-            geoTagged: geoTaggedCount
-        };
-    }
 
     async getSubmissionsByFormId(formId: string) {
         return this.submissionRepository.find({
@@ -163,20 +170,71 @@ export class FormsService {
 
         if (!form || submissions.length === 0) return '';
 
-        const headers = ['Submission ID', 'Timestamp', 'Geo-Latitude', 'Geo-Longitude', ...form.schema.fields.map(f => f.label)];
+        // Determine max rows per table field across all submissions
+        const tableFieldMaxRows: Record<string, number> = {};
+        for (const field of form.schema.fields) {
+            if (field.type === 'table' && field.columns) {
+                let maxR = 0;
+                for (const s of submissions) {
+                    const arr = s.data?.[field.id];
+                    if (Array.isArray(arr) && arr.length > maxR) maxR = arr.length;
+                }
+                tableFieldMaxRows[field.id] = maxR;
+            }
+        }
+
+        // Build header row
+        const headers: string[] = ['Submission ID', 'Timestamp', 'Geo-Latitude', 'Geo-Longitude'];
+        for (const field of form.schema.fields) {
+            if (field.type === 'table' && field.columns) {
+                const maxR = tableFieldMaxRows[field.id] || 0;
+                for (let r = 0; r < maxR; r++) {
+                    for (const col of field.columns) {
+                        headers.push(`${field.label} R${r + 1} ${col.label}`);
+                    }
+                }
+            } else {
+                headers.push(field.label);
+            }
+        }
+
+        // Build data rows
         const rows = submissions.map(s => {
             const data = s.data || {};
-            const fieldValues = form.schema.fields.map(f => data[f.id] || '');
-            return [
+            const cells: (string | number | boolean)[] = [
                 s.id,
                 s.submitted_at.toISOString(),
                 s.location?.lat || '',
                 s.location?.lng || '',
-                ...fieldValues
-            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+            ];
+
+            for (const field of form.schema.fields) {
+                if (field.type === 'table' && field.columns) {
+                    const tableRows = Array.isArray(data[field.id]) ? data[field.id] : [];
+                    const maxR = tableFieldMaxRows[field.id] || 0;
+                    for (let r = 0; r < maxR; r++) {
+                        const row = tableRows[r] || {};
+                        for (const col of field.columns) {
+                            const val = row[col.id];
+                            if (val === undefined || val === null) {
+                                cells.push('');
+                            } else if (typeof val === 'boolean') {
+                                cells.push(val ? 'Yes' : 'No');
+                            } else {
+                                cells.push(val);
+                            }
+                        }
+                    }
+                } else {
+                    const val = data[field.id];
+                    cells.push(val !== undefined && val !== null ? val : '');
+                }
+            }
+
+            return cells.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
         });
 
-        return [headers.join(','), ...rows].join('\n');
+        return [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
     }
 
     async getAnalytics() {

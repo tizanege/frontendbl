@@ -71,11 +71,13 @@ export class BillingService {
     }
 
     private async initFreeSubscription(tenantId: string) {
+        if (!tenantId) return null;
         const freePlan = await this.planRepository.findOne({ where: { price_monthly: 0 } });
         if (!freePlan) return null;
 
         const sub = this.subscriptionRepository.create({
             tenant_id: tenantId,
+            plan_id: freePlan.id,
             plan: freePlan,
             status: SubscriptionStatus.ACTIVE,
         });

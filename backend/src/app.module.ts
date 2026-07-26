@@ -15,27 +15,35 @@ import { Tenant } from './tenants/entities/tenant.entity';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CommonModule,
     SupabaseModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        url: config.get<string>('DATABASE_URL'),
-        host: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_HOST'),
-        port: config.get<string>('DATABASE_URL') ? undefined : config.get<number>('DATABASE_PORT'),
-        username: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_USER'),
-        password: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_PASS'),
-        database: config.get<string>('DATABASE_URL') ? undefined : config.get<string>('DATABASE_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        autoLoadEntities: true,
-        synchronize: false, // Set to false to use migrations
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('DATABASE_URL');
+        if (url) {
+          return {
+            type: 'postgres' as const,
+            url,
+            ssl: { rejectUnauthorized: false },
+            entities: [__dirname + '/**/*.entity{.ts,.js}'],
+            autoLoadEntities: true,
+            synchronize: false,
+          };
+        }
+        return {
+          type: 'postgres' as const,
+          host: config.get<string>('DATABASE_HOST'),
+          port: config.get<number>('DATABASE_PORT'),
+          username: config.get<string>('DATABASE_USER'),
+          password: config.get<string>('DATABASE_PASS'),
+          database: config.get<string>('DATABASE_NAME'),
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          autoLoadEntities: true,
+          synchronize: false,
+          ssl: config.get<string>('DATABASE_SSL') === 'true' ? { rejectUnauthorized: false, servername: config.get<string>('DATABASE_HOST') } : false,
+        };
+      },
       inject: [ConfigService],
     }),
     BullModule.forRootAsync({
@@ -54,7 +62,6 @@ import { Tenant } from './tenants/entities/tenant.entity';
     FormsModule,
     UsersModule,
     DispatchModule,
-    CommonModule,
   ],
 })
 export class AppModule { }

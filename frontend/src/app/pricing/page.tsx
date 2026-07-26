@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Rocket, Zap, Crown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +58,12 @@ const plans = [
 
 export default function PricingPage() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+    const router = useRouter();
+
+    const handlePlanSelection = (planId: string) => {
+        // In a real app, this might go to checkout or register
+        router.push(`/register?plan=${planId}&cycle=${billingCycle}`);
+    };
 
     return (
         <div className="min-h-screen bg-[#F9FAFB] py-20 px-4">
@@ -122,10 +129,10 @@ export default function PricingPage() {
                         <CardFooter className="p-8 mt-4">
                             <Button
                                 className={`w-full h-14 text-base font-bold rounded-2xl transition-all duration-200 ${plan.popular
-                                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
-                                        : 'bg-slate-900 hover:bg-slate-800 text-white'
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-white'
                                     }`}
-                                onClick={() => { }} // Integration logic here
+                                onClick={() => handlePlanSelection(plan.id)}
                             >
                                 {plan.buttonText}
                             </Button>
